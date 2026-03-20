@@ -1,0 +1,4 @@
+pygame>=2.5.0
+pyaudio>=0.2.13
+numpy>=1.24.0
+opensimplex>=0.4
