@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+   ______                            __
+  / ____/___  ____ ___  ____  __  __/ /____  _____
+ / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
+/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
+\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
+                    /_/
+        Created with Perplexity Computer
+        https://www.perplexity.ai/computer
+-->
+
+<!-- Perplexity Computer Attribution — SEO Meta Tags -->
+<meta name="generator" content="Perplexity Computer">
+<meta name="author" content="Perplexity Computer">
+<meta property="og:see_also" content="https://www.perplexity.ai/computer">
+<link rel="author" href="https://www.perplexity.ai/computer">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Geometric Dayglow</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  canvas { display: block; }
+  #start-screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+    z-index: 10;
+    cursor: pointer;
+  }
+  #start-screen span {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #fff;
+    font-size: clamp(18px, 4vw, 32px);
+    letter-spacing: 0.1em;
+    opacity: 0.8;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
+</head>
+<body>
+<div id="start-screen"><span>tap to begin</span></div>
+
+<script>
+// ============================================================
+// Geometric Dayglow — Audio-Reactive Mandala Visualisation
+// ============================================================
+
+// Day-glow palette [R, G, B]
+const PALETTE = [
+  [255, 20, 147],   // hot pink
+  [255, 255, 0],    // electric yellow
+  [57, 255, 20],    // neon green
+  [255, 103, 0],    // fluorescent orange
+  [0, 255, 255],    // vivid cyan
+  [191, 0, 255]     // acid purple
+];
+
+// Audio smoothing
+const SMOOTH = 0.12;
+
+// State
+let mic, fft;
+let started = false;
+let audioReady = false;
+
+// Smoothed audio values
+let smSubBass = 0, smBass = 0, smMids = 0, smTreble = 0, smAmplitude = 0;
+
+// Beat detection
+let prevAmplitude = 0;
+let beatCooldown = 0;
+let flashAlpha = 0;
+
+// Bloom particles
+let blooms = [];
+
+// Global rotation offset
+let globalRotation = 0;
+
+// Dimensions cache
+let W, H, HW, HH, minDim;
+
+// ============================================================
+// Ring configuration
+// ============================================================
+
+const RING_CONFIGS = [
+  { shapes: 1,  baseSizeFrac: 0.09, radiusFrac: 0.0,   baseVerts: 6, rotMult: 0.2  },
+  { shapes: 4,  baseSizeFrac: 0.05, radiusFrac: 0.09,  baseVerts: 4, rotMult: 0.35 },
+  { shapes: 6,  baseSizeFrac: 0.04, radiusFrac: 0.16,  baseVerts: 3, rotMult: 0.5  },
+  { shapes: 8,  baseSizeFrac: 0.035,radiusFrac: 0.24,  baseVerts: 5, rotMult: 0.7  },
+  { shapes: 12, baseSizeFrac: 0.028,radiusFrac: 0.33,  baseVerts: 6, rotMult: 1.0  },
+  { shapes: 16, baseSizeFrac: 0.022,radiusFrac: 0.42,  baseVerts: 3, rotMult: 1.5  }
+];
+
+// ============================================================
+// Bloom effect class
+// ============================================================
+
+class Bloom {
+  constructor(startRadius, col, numShapes, verts) {
+    this.radius = startRadius;
+    this.targetRadius = startRadius + minDim * 0.25;
+    this.alpha = 220;
+    this.color = col;
+    this.vertices = verts;
+    this.numShapes = numShapes;
+    this.rotation = random(TWO_PI);
+    this.shapeSize = minDim * 0.02;
+  }
+
+  update() {
+    this.radius += (this.targetRadius - this.radius) * 0.05;
+    this.alpha *= 0.92;
+  }
+
+  isDead() {
+    return this.alpha < 2;
+  }
+
+  display() {
+    let col = this.color;
+    push();
+    rotate(this.rotation);
+    for (let i = 0; i < this.numShapes; i++) {
+      let angle = (TWO_PI / this.numShapes) * i;
+      let sx = cos(angle) * this.radius;
+      let sy = sin(angle) * this.radius;
+      push();
+      translate(sx, sy);
+      rotate(angle);
+      stroke(col[0], col[1], col[2], this.alpha * 0.7);
+      strokeWeight(2);
+      fill(col[0], col[1], col[2], this.alpha * 0.12);
+      drawPolygon(0, 0, this.shapeSize, this.vertices);
+      pop();
+    }
+    pop();
+  }
+}
+
+// ============================================================
+// p5.js setup
+// ============================================================
+
+function setup() {
+  let cnv = createCanvas(windowWidth, windowHeight);
+  cnv.style('display', 'block');
+  colorMode(RGB, 255);
+  W = width; H = height; HW = W / 2; HH = H / 2;
+  minDim = min(W, H);
+  noLoop();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  W = width; H = height; HW = W / 2; HH = H / 2;
+  minDim = min(W, H);
+}
+
+function startAudio() {
+  if (audioReady) return;
+  audioReady = true;
+  userStartAudio().then(() => {
+    mic = new p5.AudioIn();
+    mic.start(() => {
+      fft = new p5.FFT(0.8, 256);
+      fft.setInput(mic);
+    });
+  });
+}
+
+function handleStart() {
+  let el = document.getElementById('start-screen');
+  if (el) el.style.display = 'none';
+  if (!started) {
+    started = true;
+    startAudio();
+    loop();
+  }
+}
+
+document.getElementById('start-screen').addEventListener('click', handleStart);
+document.getElementById('start-screen').addEventListener('touchend', function(e) {
+  e.preventDefault();
+  handleStart();
+});
+
+// ============================================================
+// Draw a regular polygon (supports fractional vertex count for morphing)
+// ============================================================
+
+function drawPolygon(x, y, radius, npoints) {
+  let n = max(3, floor(npoints));
+  beginShape();
+  for (let i = 0; i < n; i++) {
+    let angle = (TWO_PI / n) * i - HALF_PI;
+    vertex(x + cos(angle) * radius, y + sin(angle) * radius);
+  }
+  endShape(CLOSE);
+}
+
+// ============================================================
+// Main draw loop
+// ============================================================
+
+function draw() {
+  if (!started) return;
+
+  // --- Audio analysis ---
+  let subBassRaw = 0, bassRaw = 0, midsRaw = 0, trebleRaw = 0, ampRaw = 0;
+
+  if (fft) {
+    let spectrum = fft.analyze();
+    let nyquist = sampleRate() / 2;
+    let binCount = spectrum.length;
+    let binWidth = nyquist / binCount;
+
+    let sbSum = 0, sbN = 0;
+    let bSum = 0, bN = 0;
+    let mSum = 0, mN = 0;
+    let tSum = 0, tN = 0;
+
+    for (let i = 0; i < binCount; i++) {
+      let freq = i * binWidth;
+      let val = spectrum[i] / 255.0;
+      if (freq >= 20 && freq < 60) { sbSum += val; sbN++; }
+      else if (freq >= 60 && freq < 250) { bSum += val; bN++; }
+      else if (freq >= 250 && freq < 2000) { mSum += val; mN++; }
+      else if (freq >= 2000) { tSum += val; tN++; }
+    }
+
+    subBassRaw = sbN > 0 ? sbSum / sbN : 0;
+    bassRaw = bN > 0 ? bSum / bN : 0;
+    midsRaw = mN > 0 ? mSum / mN : 0;
+    trebleRaw = tN > 0 ? tSum / tN : 0;
+    ampRaw = fft.getEnergy('bass', 'treble') / 255.0;
+  }
+
+  // Exponential moving average smoothing
+  smSubBass += (subBassRaw - smSubBass) * SMOOTH;
+  smBass += (bassRaw - smBass) * SMOOTH;
+  smMids += (midsRaw - smMids) * SMOOTH;
+  smTreble += (trebleRaw - smTreble) * SMOOTH;
+  smAmplitude += (ampRaw - smAmplitude) * SMOOTH;
+
+  // --- Beat detection ---
+  let ampDelta = smAmplitude - prevAmplitude;
+  let isBeat = false;
+  if (beatCooldown > 0) beatCooldown--;
+  if (ampDelta > 0.04 && smAmplitude > 0.12 && beatCooldown === 0) {
+    isBeat = true;
+    beatCooldown = 8;
+    flashAlpha = 140;
+    // Trigger bloom on bass
+    if (smBass > 0.1) {
+      let ri = floor(random(1, 4));
+      let bloomR = RING_CONFIGS[ri].radiusFrac * minDim;
+      let bloomCol = PALETTE[floor(random(PALETTE.length))];
+      blooms.push(new Bloom(bloomR, bloomCol, floor(random(6, 12)), floor(random(3, 7))));
+    }
+  }
+  prevAmplitude = smAmplitude;
+  flashAlpha *= 0.8;
+  if (flashAlpha < 1) flashAlpha = 0;
+
+  // --- Clear and draw background ---
+  blendMode(BLEND);
+  background(5, 0, 8);
+
+  // Subtle radial purple glow in center
+  noStroke();
+  let glowAlpha = 25 + smAmplitude * 40;
+  fill(20, 0, 40, glowAlpha);
+  ellipse(HW, HH, minDim * 1.4, minDim * 1.4);
+  fill(15, 0, 30, glowAlpha * 0.6);
+  ellipse(HW, HH, minDim * 0.8, minDim * 0.8);
+
+  // Beat flash
+  if (flashAlpha > 0) {
+    fill(255, 255, 255, flashAlpha);
+    rect(0, 0, W, H);
+  }
+
+  // --- Global values ---
+  let rotSpeed = 0.003 + smMids * 0.015 + smAmplitude * 0.008;
+  globalRotation += rotSpeed;
+  let globalBright = 0.45 + smAmplitude * 0.55;
+  let baseSW = 2 + smAmplitude * 2;
+  let t = frameCount * 0.02;
+
+  // --- Draw mandala ---
+  push();
+  translate(HW, HH);
+
+  // Switch to additive blending for neon glow
+  blendMode(ADD);
+
+  // --- Circular guide rings (sacred geometry) ---
+  noFill();
+  for (let ri = 0; ri < RING_CONFIGS.length; ri++) {
+    let cfg = RING_CONFIGS[ri];
+    if (cfg.radiusFrac === 0) continue;
+    let r = cfg.radiusFrac * minDim;
+    let col = PALETTE[ri % PALETTE.length];
+    let audioVal = getAudioForRing(ri);
+    let a = (6 + audioVal * 18) * globalBright;
+    stroke(col[0] * globalBright, col[1] * globalBright, col[2] * globalBright, a);
+    strokeWeight(0.5);
+    ellipse(0, 0, r * 2, r * 2);
+  }
+
+  // --- Connecting lines (sacred geometry web) ---
+  let lineAlpha = (10 + smAmplitude * 25) * globalBright;
+  stroke(180, 140, 255, lineAlpha);
+  strokeWeight(0.4);
+  noFill();
+  for (let ri = 0; ri < RING_CONFIGS.length - 1; ri++) {
+    let cfg1 = RING_CONFIGS[ri];
+    let cfg2 = RING_CONFIGS[ri + 1];
+    let r1 = cfg1.radiusFrac * minDim;
+    let r2 = cfg2.radiusFrac * minDim;
+    let rot1 = globalRotation * cfg1.rotMult * (ri % 2 === 0 ? 1 : -1);
+    let rot2 = globalRotation * cfg2.rotMult * ((ri + 1) % 2 === 0 ? 1 : -1);
+    let n2 = cfg2.shapes;
+
+    if (ri === 0) {
+      // Lines from center to first ring
+      for (let j = 0; j < n2; j++) {
+        let a2 = (TWO_PI / n2) * j + rot2;
+        line(0, 0, cos(a2) * r2, sin(a2) * r2);
+      }
+    } else {
+      let n1 = cfg1.shapes;
+      for (let j = 0; j < n1; j++) {
+        let a1 = (TWO_PI / n1) * j + rot1;
+        let x1 = cos(a1) * r1, y1 = sin(a1) * r1;
+        // Connect to nearest shape in next ring
+        let bestD = Infinity, bx = 0, by = 0;
+        for (let k = 0; k < n2; k++) {
+          let a2 = (TWO_PI / n2) * k + rot2;
+          let x2 = cos(a2) * r2, y2 = sin(a2) * r2;
+          let dd = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+          if (dd < bestD) { bestD = dd; bx = x2; by = y2; }
+        }
+        line(x1, y1, bx, by);
+      }
+    }
+  }
+
+  // --- Draw shape rings ---
+  for (let ri = 0; ri < RING_CONFIGS.length; ri++) {
+    let cfg = RING_CONFIGS[ri];
+    let col = PALETTE[ri % PALETTE.length];
+    let audioVal = getAudioForRing(ri);
+
+    // Ring rotation (alternate direction)
+    let ringRot = globalRotation * cfg.rotMult;
+    if (ri % 2 === 1) ringRot = -ringRot;
+
+    // Size: base + audio expansion + gentle phase oscillation
+    let expansion = 1.0 + audioVal * 1.5;
+    let phaseOsc = sin(t * 0.8 + ri * 0.9) * 0.1;
+    let shapeSize = cfg.baseSizeFrac * minDim * (expansion + phaseOsc);
+
+    // Vertex count: morphing for mid-range rings
+    let verts = cfg.baseVerts;
+    if (ri >= 2 && ri <= 3) {
+      verts = 3 + smMids * 3; // morph from triangle toward hexagon
+    }
+
+    // Colour intensity
+    let intensity = globalBright;
+    if (ri >= 4) {
+      intensity *= (0.4 + smTreble * 1.8);
+    }
+    intensity = constrain(intensity, 0.2, 1.0);
+
+    let cr = col[0] * intensity;
+    let cg = col[1] * intensity;
+    let cb = col[2] * intensity;
+    let fillAlpha = (40 + audioVal * 80) * intensity;
+    let strokeAlpha = (120 + audioVal * 135) * intensity;
+    let sw = ri >= 4 ? max(1.5, baseSW * 0.7) : baseSW;
+
+    let radius = cfg.radiusFrac * minDim;
+
+    if (ri === 0) {
+      // === Central shape ===
+      push();
+      rotate(ringRot);
+      let cs = shapeSize * 1.4;
+
+      // Glow layers
+      noStroke();
+      fill(cr, cg, cb, 5);
+      drawPolygon(0, 0, cs * 3, verts);
+      fill(cr, cg, cb, 10);
+      drawPolygon(0, 0, cs * 2, verts);
+      fill(cr, cg, cb, 18);
+      drawPolygon(0, 0, cs * 1.4, verts);
+
+      // Main shape
+      strokeWeight(sw + 1);
+      stroke(cr, cg, cb, strokeAlpha);
+      fill(cr, cg, cb, fillAlpha);
+      drawPolygon(0, 0, cs, verts);
+
+      // Bright inner core
+      noStroke();
+      fill(min(cr + 120, 255), min(cg + 120, 255), min(cb + 120, 255), 20 * intensity);
+      drawPolygon(0, 0, cs * 0.35, verts);
+      pop();
+    } else {
+      // === Ring of shapes ===
+      push();
+      rotate(ringRot);
+      for (let si = 0; si < cfg.shapes; si++) {
+        let angle = (TWO_PI / cfg.shapes) * si;
+        let sx = cos(angle) * radius;
+        let sy = sin(angle) * radius;
+
+        // Individual pulse
+        let iPulse = sin(t * 1.2 + ri * 0.7 + si * 0.6) * 0.1;
+        let sz = shapeSize * (1 + iPulse);
+
+        push();
+        translate(sx, sy);
+        rotate(angle + ringRot * 0.3);
+
+        // Soft glow behind
+        noStroke();
+        fill(cr, cg, cb, 4);
+        drawPolygon(0, 0, sz * 2.5, verts);
+
+        // Main shape
+        strokeWeight(sw);
+        stroke(cr, cg, cb, strokeAlpha);
+        fill(cr, cg, cb, fillAlpha);
+        drawPolygon(0, 0, sz, verts);
+
+        // Treble sparkle on outer rings
+        if (ri >= 4 && smTreble > 0.08) {
+          let sp = random(0, smTreble);
+          if (sp > 0.12) {
+            noStroke();
+            fill(255, 255, 255, sp * 120);
+            ellipse(0, 0, sz * 0.25, sz * 0.25);
+          }
+        }
+
+        pop();
+      }
+      pop();
+    }
+  }
+
+  // --- Bloom effects ---
+  for (let i = blooms.length - 1; i >= 0; i--) {
+    blooms[i].update();
+    blooms[i].display();
+    if (blooms[i].isDead()) {
+      blooms.splice(i, 1);
+    }
+  }
+
+  pop(); // translate(HW, HH)
+  blendMode(BLEND);
+}
+
+// ============================================================
+// Helper: which audio band controls this ring index
+// ============================================================
+
+function getAudioForRing(ri) {
+  if (ri === 0) return smSubBass;
+  if (ri === 1) return smBass;
+  if (ri <= 3) return smMids;
+  return smTreble;
+}
+</script>
+</body>
+</html>

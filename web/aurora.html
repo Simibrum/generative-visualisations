@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+   ______                            __
+  / ____/___  ____ ___  ____  __  __/ /____  _____
+ / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
+/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
+\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
+                    /_/
+        Created with Perplexity Computer
+        https://www.perplexity.ai/computer
+-->
+
+<!-- Perplexity Computer Attribution — SEO Meta Tags -->
+<meta name="generator" content="Perplexity Computer">
+<meta name="author" content="Perplexity Computer">
+<meta property="og:see_also" content="https://www.perplexity.ai/computer">
+<link rel="author" href="https://www.perplexity.ai/computer">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Aurora Borealis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  canvas { display: block; }
+  #start-screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+    z-index: 10;
+    cursor: pointer;
+  }
+  #start-screen span {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #fff;
+    font-size: clamp(18px, 4vw, 32px);
+    letter-spacing: 0.1em;
+    opacity: 0.8;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
+</head>
+<body>
+<div id="start-screen"><span>tap to begin</span></div>
+
+<script>
+// ============================================================
+// Aurora Borealis — Audio-Reactive Visualisation
+//
+// Architecture: p5.js + p5.sound, mic input, FFT analysis,
+// tap-to-start, fullscreen black canvas, exponential smoothing.
+// Same pattern as index.html (Neon Creatures).
+// ============================================================
+
+const SMOOTH = 0.12;
+
+let mic, fft;
+let started = false;
+let audioReady = false;
+
+let smSubBass = 0, smBass = 0, smMids = 0, smTreble = 0, smAmplitude = 0;
+
+let W, H;
+let t = 0;
+
+const NUM_STARS = 300;
+let stars = [];
+
+const MAX_PARTICLES = 100;
+let particles = [];
+
+let hillPts = [];
+
+// ============================================================
+// Curtain layers
+// ============================================================
+const CLAYERS = [
+  { r: 0, g: 255, b: 127, r2: 57, g2: 255, b2: 20,
+    ns: 0, spd: 0.4, baseA: 0.55, reach: 1.0, po: 0, audio: 'bass' },
+  { r: 30, g: 255, b: 60, r2: 0, g2: 200, b2: 100,
+    ns: 100, spd: 0.3, baseA: 0.38, reach: 0.88, po: 1.5, audio: 'bass' },
+  { r: 0, g: 191, b: 255, r2: 30, g2: 144, b2: 255,
+    ns: 200, spd: 0.25, baseA: 0.32, reach: 0.78, po: 3.0, audio: 'treble' },
+  { r: 155, g: 48, b: 255, r2: 218, g2: 112, b2: 214,
+    ns: 300, spd: 0.35, baseA: 0.22, reach: 0.68, po: 4.5, audio: 'treble' },
+  { r: 255, g: 20, b: 147, r2: 218, g2: 80, b2: 180,
+    ns: 400, spd: 0.45, baseA: 0.1, reach: 0.55, po: 6.0, audio: 'amp' }
+];
+
+// ============================================================
+// Setup
+// ============================================================
+
+function setup() {
+  let cnv = createCanvas(windowWidth, windowHeight);
+  cnv.style('display', 'block');
+  colorMode(RGB, 255);
+  W = width; H = height;
+  initStars();
+  initHills();
+  noLoop();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  W = width; H = height;
+  initStars();
+  initHills();
+}
+
+function initStars() {
+  stars = [];
+  for (let i = 0; i < NUM_STARS; i++) {
+    stars.push({
+      x: Math.random() * W,
+      y: Math.random() * H * 0.74,
+      sz: Math.random() * 1.5 + 0.3,
+      ph: Math.random() * 1000,
+      rate: Math.random() * 1.5 + 0.3,
+      b: Math.random() * 0.5 + 0.5
+    });
+  }
+}
+
+function initHills() {
+  hillPts = [];
+  let n = Math.ceil(W / 5) + 2;
+  let s = Math.random() * 10000;
+  for (let i = 0; i <= n; i++) {
+    let f = i / n;
+    hillPts.push(
+      f * W,
+      H * (0.87 - noise(s + f * 2.5) * 0.08
+                  - noise(s + 300 + f * 7) * 0.03
+                  - noise(s + 700 + f * 22) * 0.015)
+    );
+  }
+}
+
+// ============================================================
+// Audio (identical pattern to index.html)
+// ============================================================
+
+function startAudio() {
+  if (audioReady) return;
+  audioReady = true;
+  userStartAudio().then(() => {
+    mic = new p5.AudioIn();
+    mic.start(() => {
+      fft = new p5.FFT(0.8, 256);
+      fft.setInput(mic);
+    });
+  });
+}
+
+function handleStart() {
+  let el = document.getElementById('start-screen');
+  if (el) el.style.display = 'none';
+  if (!started) {
+    started = true;
+    startAudio();
+    loop();
+  }
+}
+
+document.getElementById('start-screen').addEventListener('click', handleStart);
+document.getElementById('start-screen').addEventListener('touchend', function(e) {
+  e.preventDefault();
+  handleStart();
+});
+
+// ============================================================
+// Draw
+// ============================================================
+
+function draw() {
+  if (!started) return;
+
+  let subBassRaw = 0, bassRaw = 0, midsRaw = 0, trebleRaw = 0, ampRaw = 0;
+
+  if (fft) {
+    let spectrum = fft.analyze();
+    let nyquist = sampleRate() / 2;
+    let binCount = spectrum.length;
+    let binWidth = nyquist / binCount;
+    let sbS = 0, sbN = 0, bS = 0, bN = 0;
+    let mS = 0, mN = 0, tS = 0, tN = 0;
+
+    for (let i = 0; i < binCount; i++) {
+      let freq = i * binWidth;
+      let v = spectrum[i] / 255.0;
+      if (freq >= 20 && freq < 60) { sbS += v; sbN++; }
+      else if (freq >= 60 && freq < 250) { bS += v; bN++; }
+      else if (freq >= 250 && freq < 2000) { mS += v; mN++; }
+      else if (freq >= 2000) { tS += v; tN++; }
+    }
+
+    subBassRaw = sbN > 0 ? sbS / sbN : 0;
+    bassRaw = bN > 0 ? bS / bN : 0;
+    midsRaw = mN > 0 ? mS / mN : 0;
+    trebleRaw = tN > 0 ? tS / tN : 0;
+    ampRaw = fft.getEnergy('bass', 'treble') / 255.0;
+  }
+
+  smSubBass += (subBassRaw - smSubBass) * SMOOTH;
+  smBass += (bassRaw - smBass) * SMOOTH;
+  smMids += (midsRaw - smMids) * SMOOTH;
+  smTreble += (trebleRaw - smTreble) * SMOOTH;
+  smAmplitude += (ampRaw - smAmplitude) * SMOOTH;
+
+  t += 0.005 + smMids * 0.015;
+
+  background(0, 1, 4);
+  drawStars();
+  drawAurora();
+  drawParticles();
+  drawLandscape();
+}
+
+// ============================================================
+// Stars
+// ============================================================
+
+function drawStars() {
+  noStroke();
+  let tr = 1 + smAmplitude * 4;
+  for (let i = 0; i < NUM_STARS; i++) {
+    let s = stars[i];
+    let tw = Math.sin(s.ph + t * tr * s.rate * 6) * 0.5 + 0.5;
+    let a = s.b * tw * (110 + smAmplitude * 100);
+    if (a < 4) continue;
+    fill(255, 255, 255, Math.min(a, 230));
+    let sz = s.sz * (0.6 + tw * 0.4);
+    rect(s.x, s.y, sz, sz);
+  }
+}
+
+// ============================================================
+// Aurora — shape-based horizontal bands with wavy edges
+//
+// Each curtain layer has a "bottom edge" curve computed from
+// sine waves + Perlin noise. The curtain extends from y=0 down
+// to this curve. It's drawn as horizontal bands with decreasing
+// alpha, creating the characteristic green-to-transparent gradient.
+// ============================================================
+
+function drawAurora() {
+  // Audio-reactive parameters
+  let vertExtent = 0.35 + smSubBass * 0.35;
+  vertExtent = Math.min(vertExtent, 0.72);
+
+  let bassI = 0.5 + smBass * 1.5;
+  let wAmp = H * (0.12 + smBass * 0.14);
+  let cmplx = 1 + smMids * 2.5;
+  let trebI = 0.35 + smTreble * 2;
+  let gBr = 0.45 + smAmplitude * 0.55;
+  gBr = Math.min(gBr, 1.0);
+
+  noStroke();
+
+  // Sampling resolution for the bottom-edge curve
+  let step = W < 600 ? 8 : 5;
+  let nPts = Math.ceil(W / step) + 1;
+
+  for (let L = 0; L < CLAYERS.length; L++) {
+    let ly = CLAYERS[L];
+
+    // Layer intensity based on audio band
+    let lI;
+    if (ly.audio === 'bass') lI = ly.baseA * bassI;
+    else if (ly.audio === 'treble') lI = ly.baseA * trebI;
+    else lI = ly.baseA * smAmplitude * 3.5;
+    lI *= gBr;
+    if (lI < 0.01) continue;
+
+    let ct = t * ly.spd;
+    let ns = ly.ns;
+    let maxR = H * vertExtent * ly.reach;
+    let po = ly.po;
+
+    // Compute bottom edge curve
+    let bots = new Float32Array(nPts);
+    for (let i = 0; i < nPts; i++) {
+      let xn = i / (nPts - 1); // 0..1
+
+      let w = 0;
+      // Large slow drape
+      w += Math.sin(xn * TWO_PI * 1.5 + ct * 0.6 + po) * wAmp * 1.5;
+      // Medium ripple
+      w += Math.sin(xn * TWO_PI * 4 + ct * 1.2 + po * 0.7) * wAmp * 0.65 * cmplx;
+      // Fine ripple (audio-reactive)
+      w += Math.sin(xn * TWO_PI * 10 + ct * 0.4 + po * 1.3) * wAmp * 0.2 * cmplx;
+      // Perlin
+      w += (noise(ns + xn * 3.5, ct * 0.3) - 0.5) * wAmp * 1.5;
+      // Very slow swell
+      w += Math.sin(xn * TWO_PI * 0.6 + ct * 0.12 + po * 0.3) * wAmp * 1.0;
+
+      bots[i] = Math.max(Math.min(maxR + w, H * 0.8), 8);
+    }
+
+    // Color
+    let cmix = noise(ns + 100, ct * 0.08);
+    let cr = ly.r + (ly.r2 - ly.r) * cmix;
+    let cg = ly.g + (ly.g2 - ly.g) * cmix;
+    let cb = ly.b + (ly.b2 - ly.b) * cmix;
+
+    // Draw 20 horizontal bands for smooth vertical gradient
+    let numBands = 20;
+    for (let band = 0; band < numBands; band++) {
+      let f0 = band / numBands;
+      let f1 = (band + 1) / numBands;
+      let fm = (f0 + f1) * 0.5;
+
+      // Brightness profile:
+      // Top 5%: ramp up (above the fold)
+      // 5-20%: bright fold
+      // 20-100%: exponential decay
+      let fade;
+      if (fm < 0.05) {
+        fade = 0.3 + fm / 0.05 * 0.7;
+      } else if (fm < 0.2) {
+        fade = 1.0;
+      } else {
+        let d = (fm - 0.2) / 0.8;
+        fade = Math.exp(-d * 2.8);
+      }
+
+      // Per-band shimmer for vertical texture
+      let shim = noise(ns + 900 + band * 0.5, ct * 1.5) * 0.25 + 0.75;
+
+      let alpha = lI * fade * shim * 255;
+      alpha = Math.min(alpha, 110);
+      if (alpha < 1) continue;
+
+      fill(cr, cg, cb, alpha);
+
+      beginShape();
+      // Top edge (left to right)
+      for (let i = 0; i < nPts; i++) {
+        vertex(i * step, bots[i] * f0);
+      }
+      // Right side connector
+      vertex(W + 5, bots[nPts - 1] * f0);
+      vertex(W + 5, bots[nPts - 1] * f1);
+      // Bottom edge (right to left)
+      for (let i = nPts - 1; i >= 0; i--) {
+        vertex(i * step, bots[i] * f1);
+      }
+      endShape(CLOSE);
+    }
+
+    // Draw shimmer columns — vertical brightness variation within the curtain
+    // This gives the "ray" / columnar look of real aurora
+    for (let i = 0; i < nPts - 1; i++) {
+      let x = i * step;
+      let colShim = noise(ns + 500 + i * 0.04, ct * 2.5);
+      if (colShim < 0.45) continue; // Only brighten some columns
+
+      let colAlpha = (colShim - 0.45) * 2.5 * lI * gBr * 100;
+      colAlpha = Math.min(colAlpha, 55);
+      if (colAlpha < 1) continue;
+
+      let colH = bots[i] * 0.4; // Brighten top 40%
+      fill(Math.min(cr + 60, 255), Math.min(cg + 60, 255), Math.min(cb + 60, 255), colAlpha);
+      rect(x, 0, step, colH);
+    }
+  }
+}
+
+// ============================================================
+// Particles
+// ============================================================
+
+function drawParticles() {
+  let rate = 0.15 + smTreble * 3 + smAmplitude * 1.5;
+  let n = Math.floor(rate);
+  if (Math.random() < (rate - n)) n++;
+
+  for (let s = 0; s < n; s++) {
+    if (particles.length < MAX_PARTICLES) {
+      let cols = [
+        [100, 255, 170], [80, 255, 130], [80, 220, 255],
+        [180, 120, 255], [240, 130, 200]
+      ];
+      let c = cols[Math.floor(Math.random() * cols.length)];
+      particles.push({
+        x: Math.random() * W,
+        y: H * (0.03 + Math.random() * 0.45),
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: -(Math.random() * 0.5 + 0.1),
+        sz: Math.random() * 2.5 + 0.8,
+        life: 1.0,
+        decay: Math.random() * 0.005 + 0.003,
+        ph: Math.random() * TWO_PI,
+        cr: c[0], cg: c[1], cb: c[2]
+      });
+    }
+  }
+
+  noStroke();
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx + Math.sin(t * 2 + p.ph) * 0.12;
+    p.y += p.vy;
+    p.life -= p.decay;
+
+    if (p.life <= 0 || p.y < -20) {
+      particles.splice(i, 1);
+      continue;
+    }
+
+    let a = p.life * p.life;
+    let sz = p.sz * (0.3 + p.life * 0.7);
+
+    fill(p.cr, p.cg, p.cb, a * 30);
+    ellipse(p.x, p.y, sz * 4, sz * 4);
+    fill(p.cr, p.cg, p.cb, a * 190);
+    ellipse(p.x, p.y, sz, sz);
+    fill(255, 255, 255, a * 60);
+    ellipse(p.x, p.y, sz * 0.3, sz * 0.3);
+  }
+}
+
+// ============================================================
+// Landscape
+// ============================================================
+
+function drawLandscape() {
+  noStroke();
+  fill(3, 4, 8);
+  beginShape();
+  vertex(0, H);
+  for (let i = 0; i < hillPts.length; i += 2) {
+    vertex(hillPts[i], hillPts[i + 1]);
+  }
+  vertex(W, H);
+  endShape(CLOSE);
+
+  // Treeline
+  fill(5, 7, 12);
+  for (let i = 0; i < hillPts.length - 2; i += 2) {
+    if ((i / 2) % 2 === 0) {
+      let hx = hillPts[i], hy = hillPts[i + 1];
+      let th = 2 + noise(i * 0.3) * 9;
+      let tw = 1.5 + noise(i * 0.5 + 99) * 3.5;
+      triangle(hx, hy - th, hx - tw, hy, hx + tw, hy);
+    }
+  }
+}
+</script>
+</body>
+</html>
