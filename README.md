@@ -7,10 +7,10 @@ Turn the lights off. Project onto a wall. Put on some ambient music. Enjoy.
 ## Two Versions
 
 ### Browser Version (`/web/`)
-A single self-contained HTML file using p5.js. Works on your phone, desktop, or the Pi's Chromium browser.
+A set of self-contained HTML files using p5.js. Open the launcher in your phone, desktop, or the Pi's Chromium browser.
 
 ```bash
-# Just open it
+# Just open the launcher
 open web/index.html
 # Or serve it
 python -m http.server 8000 -d web/

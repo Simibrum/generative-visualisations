@@ -62,8 +62,8 @@
 // Milkdrop Visualiser — Audio-Reactive Winamp-Style
 //
 // Uses p5 API exclusively (not raw drawingContext).
-// Same pattern as index.html: BLEND→fade→ADD→draw→BLEND
-// All colors in RGB mode to match index.html exactly.
+// Same pattern as creatures.html: BLEND→fade→ADD→draw→BLEND
+// All colors in RGB mode to match creatures.html exactly.
 // ============================================================
 
 var SMOOTH = 0.12;
@@ -172,7 +172,7 @@ function draw() {
 
   hueOffset = (hueOffset + (15 + smTreble*120)*dt) % 360;
 
-  // === FADE === (same pattern as index.html)
+  // === FADE === (same pattern as creatures.html)
   blendMode(BLEND);
   noStroke();
   fill(0, 0, 0, 28);
