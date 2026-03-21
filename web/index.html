@@ -1,491 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!--
-   ______                            __
-  / ____/___  ____ ___  ____  __  __/ /____  _____
- / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
-/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
-\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
-                    /_/
-        Created with Perplexity Computer
-        https://www.perplexity.ai/computer
--->
-
-<!-- Perplexity Computer Attribution — SEO Meta Tags -->
-<meta name="generator" content="Perplexity Computer">
-<meta name="author" content="Perplexity Computer">
-<meta property="og:see_also" content="https://www.perplexity.ai/computer">
-<link rel="author" href="https://www.perplexity.ai/computer">
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Neon Creatures</title>
+<title>Neon Creatures — Choose Your Visualisation</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: 100%; height: 100%;
-    overflow: hidden;
     background: #000;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: none;
-  }
-  canvas { display: block; }
-  #start-screen {
-    position: fixed; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: #000;
-    z-index: 10;
-    cursor: pointer;
-  }
-  #start-screen span {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: #fff;
-    font-size: clamp(18px, 4vw, 32px);
-    letter-spacing: 0.1em;
-    opacity: 0.8;
-    animation: pulse 3s ease-in-out infinite;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
   }
-  @keyframes pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 1; }
+  .container {
+    text-align: center;
+    padding: 2rem;
+    max-width: 600px;
+    width: 100%;
+  }
+  h1 {
+    font-size: clamp(20px, 5vw, 32px);
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.3em;
+    color: #fff;
+  }
+  .subtitle {
+    font-size: clamp(12px, 3vw, 16px);
+    color: #666;
+    margin-bottom: 2.5em;
+    letter-spacing: 0.05em;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  a.card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 1.5rem 1rem;
+    transition: all 0.3s ease;
+    background: #0a0a0a;
+    min-height: 120px;
+  }
+  a.card:hover, a.card:active {
+    border-color: #444;
+    background: #111;
+    transform: scale(1.02);
+  }
+  .card-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  .card-title {
+    font-size: clamp(13px, 3.5vw, 16px);
+    font-weight: 500;
+    color: #fff;
+    margin-bottom: 0.3em;
+  }
+  .card-desc {
+    font-size: clamp(10px, 2.5vw, 12px);
+    color: #888;
+    line-height: 1.4;
+  }
+  /* Colour accents per card */
+  .card.creatures:hover { border-color: #00ffff; box-shadow: 0 0 20px rgba(0,255,255,0.15); }
+  .card.winamp:hover { border-color: #ff00ff; box-shadow: 0 0 20px rgba(255,0,255,0.15); }
+  .card.geometric:hover { border-color: #39ff14; box-shadow: 0 0 20px rgba(57,255,20,0.15); }
+  .card.aurora:hover { border-color: #00ff7f; box-shadow: 0 0 20px rgba(0,255,127,0.15); }
+
+  .footer {
+    margin-top: 2.5em;
+    font-size: 11px;
+    color: #444;
+    letter-spacing: 0.05em;
+  }
+  .footer a { color: #555; text-decoration: none; }
+  .footer a:hover { color: #888; }
+
+  @media (max-width: 400px) {
+    .grid { grid-template-columns: 1fr; }
+    .container { padding: 1.5rem; }
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
 </head>
 <body>
-<div id="start-screen"><span>tap to begin</span></div>
-
-<script>
-// ============================================================
-// Neon Creatures — Generative Audio-Reactive Visualisation
-// ============================================================
-
-const NUM_CREATURES = 40;
-const PALETTE = [
-  [0, 255, 255],    // cyan
-  [255, 0, 255],    // magenta
-  [0, 102, 255],    // electric blue
-  [0, 255, 102],    // lime green
-  [153, 51, 255],   // soft purple
-  [255, 102, 0]     // warm orange
-];
-
-// Boids parameters — tuned for loose, ambient flocking with sub-groups
-const PERCEPTION_RADIUS = 80;
-const SEP_RADIUS = 45;
-const SEP_FORCE = 2.8;
-const ALI_FORCE = 0.6;
-const COH_FORCE = 0.3;
-const MAX_SPEED_BASE = 1.6;
-const MAX_FORCE = 0.08;
-const NOISE_STRENGTH = 1.5; // Strong noise to break up mega-flocks
-
-// Audio smoothing factor
-const SMOOTH = 0.12;
-
-// State
-let mic, fft;
-let creatures = [];
-let started = false;
-let audioReady = false;
-
-// Smoothed audio values
-let smSubBass = 0, smBass = 0, smMids = 0, smTreble = 0, smAmplitude = 0;
-
-// Perlin noise time
-let noiseTime = 0;
-
-// Dimensions cache
-let W, H, HW, HH;
-
-// ============================================================
-// p5.js setup
-// ============================================================
-
-function setup() {
-  let cnv = createCanvas(windowWidth, windowHeight);
-  cnv.style('display', 'block');
-  colorMode(RGB, 255);
-  W = width; H = height; HW = W / 2; HH = H / 2;
-
-  for (let i = 0; i < NUM_CREATURES; i++) {
-    creatures.push(new Creature(random(W), random(H)));
-  }
-  noLoop();
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-  W = width; H = height; HW = W / 2; HH = H / 2;
-}
-
-function startAudio() {
-  if (audioReady) return;
-  audioReady = true;
-  userStartAudio().then(() => {
-    mic = new p5.AudioIn();
-    mic.start(() => {
-      fft = new p5.FFT(0.8, 256);
-      fft.setInput(mic);
-    });
-  });
-}
-
-function handleStart() {
-  let el = document.getElementById('start-screen');
-  if (el) el.style.display = 'none';
-  if (!started) {
-    started = true;
-    startAudio();
-    loop();
-  }
-}
-
-document.getElementById('start-screen').addEventListener('click', handleStart);
-document.getElementById('start-screen').addEventListener('touchend', function(e) {
-  e.preventDefault();
-  handleStart();
-});
-
-// ============================================================
-// Main draw loop
-// ============================================================
-
-function draw() {
-  if (!started) return;
-
-  // --- Audio analysis ---
-  let subBassRaw = 0, bassRaw = 0, midsRaw = 0, trebleRaw = 0, ampRaw = 0;
-
-  if (fft) {
-    let spectrum = fft.analyze();
-    let nyquist = sampleRate() / 2;
-    let binCount = spectrum.length;
-    let binWidth = nyquist / binCount;
-
-    let sbSum = 0, sbN = 0;
-    let bSum = 0, bN = 0;
-    let mSum = 0, mN = 0;
-    let tSum = 0, tN = 0;
-
-    for (let i = 0; i < binCount; i++) {
-      let freq = i * binWidth;
-      let val = spectrum[i] / 255.0;
-      if (freq >= 20 && freq < 60) { sbSum += val; sbN++; }
-      else if (freq >= 60 && freq < 250) { bSum += val; bN++; }
-      else if (freq >= 250 && freq < 2000) { mSum += val; mN++; }
-      else if (freq >= 2000) { tSum += val; tN++; }
-    }
-
-    subBassRaw = sbN > 0 ? sbSum / sbN : 0;
-    bassRaw = bN > 0 ? bSum / bN : 0;
-    midsRaw = mN > 0 ? mSum / mN : 0;
-    trebleRaw = tN > 0 ? tSum / tN : 0;
-    ampRaw = fft.getEnergy('bass', 'treble') / 255.0;
-  }
-
-  // Exponential moving average smoothing
-  smSubBass += (subBassRaw - smSubBass) * SMOOTH;
-  smBass += (bassRaw - smBass) * SMOOTH;
-  smMids += (midsRaw - smMids) * SMOOTH;
-  smTreble += (trebleRaw - smTreble) * SMOOTH;
-  smAmplitude += (ampRaw - smAmplitude) * SMOOTH;
-
-  // --- Trail effect ---
-  // Louder = lower alpha = longer trails
-  let trailAlpha = map(smAmplitude, 0, 1, 16, 4);
-  trailAlpha = constrain(trailAlpha, 4, 20);
-
-  blendMode(BLEND);
-  noStroke();
-  fill(0, 0, 0, trailAlpha);
-  rect(0, 0, W, H);
-
-  // --- Flock & update ---
-  noiseTime += 0.003;
-  for (let i = 0; i < creatures.length; i++) {
-    creatures[i].flock(creatures);
-  }
-
-  blendMode(ADD);
-  for (let i = 0; i < creatures.length; i++) {
-    let c = creatures[i];
-    c.update();
-    c.wrap();
-    c.display();
-  }
-  blendMode(BLEND);
-}
-
-// ============================================================
-// Creature class
-// ============================================================
-
-class Creature {
-  constructor(x, y) {
-    this.pos = createVector(x, y);
-    this.vel = p5.Vector.random2D().mult(random(0.3, MAX_SPEED_BASE));
-    this.acc = createVector(0, 0);
-    this.baseColor = random(PALETTE);
-
-    // Unique noise offsets — widely spaced so creatures get truly different wander paths
-    this.noiseOffX = random(0, 10000);
-    this.noiseOffY = random(10000, 20000);
-    // Each creature's noise evolves at a slightly different rate
-    this.noiseSpeed = random(0.6, 1.4);
-
-    this.bodyW = random(14, 24);
-    this.bodyH = this.bodyW * random(0.6, 0.8);
-    this.numTentacles = floor(random(2, 5));
-    this.phase = random(TWO_PI);
-
-    // Tentacle data
-    this.tentacles = [];
-    this.tentacleAngles = [];
-    for (let t = 0; t < this.numTentacles; t++) {
-      let numSegs = floor(random(6, 10));
-      let segs = [];
-      for (let s = 0; s < numSegs; s++) {
-        segs.push({ x: x, y: y });
-      }
-      this.tentacles.push(segs);
-      let spread = this.numTentacles > 1
-        ? map(t, 0, this.numTentacles - 1, -0.4, 0.4)
-        : 0;
-      this.tentacleAngles.push(spread);
-    }
-  }
-
-  flock(boids) {
-    let sepX = 0, sepY = 0, sepN = 0;
-    let aliX = 0, aliY = 0, aliN = 0;
-    let cohX = 0, cohY = 0, cohN = 0;
-    let px = this.pos.x, py = this.pos.y;
-    let prSq = PERCEPTION_RADIUS * PERCEPTION_RADIUS;
-    let srSq = SEP_RADIUS * SEP_RADIUS;
-
-    for (let i = 0; i < boids.length; i++) {
-      let o = boids[i];
-      if (o === this) continue;
-      let dx = o.pos.x - px;
-      let dy = o.pos.y - py;
-      if (dx > HW) dx -= W; else if (dx < -HW) dx += W;
-      if (dy > HH) dy -= H; else if (dy < -HH) dy += H;
-      let dSq = dx * dx + dy * dy;
-
-      if (dSq < prSq && dSq > 1) {
-        let d = Math.sqrt(dSq);
-        if (dSq < srSq) {
-          let inv = 1.0 / d;
-          sepX -= dx * inv;
-          sepY -= dy * inv;
-          sepN++;
-        }
-        aliX += o.vel.x;
-        aliY += o.vel.y;
-        aliN++;
-        cohX += dx;
-        cohY += dy;
-        cohN++;
-      }
-    }
-
-    let ax = 0, ay = 0;
-
-    if (sepN > 0) {
-      sepX /= sepN; sepY /= sepN;
-      let m = Math.sqrt(sepX * sepX + sepY * sepY);
-      if (m > 0) {
-        sepX = (sepX / m) * MAX_SPEED_BASE - this.vel.x;
-        sepY = (sepY / m) * MAX_SPEED_BASE - this.vel.y;
-        let fm = Math.sqrt(sepX * sepX + sepY * sepY);
-        if (fm > MAX_FORCE) { let r = MAX_FORCE / fm; sepX *= r; sepY *= r; }
-      }
-      ax += sepX * SEP_FORCE;
-      ay += sepY * SEP_FORCE;
-    }
-
-    if (aliN > 0) {
-      aliX /= aliN; aliY /= aliN;
-      let m = Math.sqrt(aliX * aliX + aliY * aliY);
-      if (m > 0) {
-        aliX = (aliX / m) * MAX_SPEED_BASE - this.vel.x;
-        aliY = (aliY / m) * MAX_SPEED_BASE - this.vel.y;
-        let fm = Math.sqrt(aliX * aliX + aliY * aliY);
-        if (fm > MAX_FORCE) { let r = MAX_FORCE / fm; aliX *= r; aliY *= r; }
-      }
-      ax += aliX * ALI_FORCE;
-      ay += aliY * ALI_FORCE;
-    }
-
-    if (cohN > 0) {
-      cohX /= cohN; cohY /= cohN;
-      let m = Math.sqrt(cohX * cohX + cohY * cohY);
-      if (m > 0) {
-        cohX = (cohX / m) * MAX_SPEED_BASE - this.vel.x;
-        cohY = (cohY / m) * MAX_SPEED_BASE - this.vel.y;
-        let fm = Math.sqrt(cohX * cohX + cohY * cohY);
-        if (fm > MAX_FORCE) { let r = MAX_FORCE / fm; cohX *= r; cohY *= r; }
-      }
-      ax += cohX * COH_FORCE;
-      ay += cohY * COH_FORCE;
-    }
-
-    // Strong per-creature Perlin noise wander — the key to breaking up mega-flocks
-    let nt = noiseTime * this.noiseSpeed;
-    let nx = noise(this.noiseOffX + nt) * 2 - 1;
-    let ny = noise(this.noiseOffY + nt) * 2 - 1;
-    ax += nx * NOISE_STRENGTH * MAX_FORCE;
-    ay += ny * NOISE_STRENGTH * MAX_FORCE;
-
-    this.acc.x += ax;
-    this.acc.y += ay;
-  }
-
-  update() {
-    let speedMult = 1.0 + smBass * 3.0;
-    let maxSpd = MAX_SPEED_BASE * speedMult;
-
-    this.vel.x += this.acc.x;
-    this.vel.y += this.acc.y;
-
-    let spd = Math.sqrt(this.vel.x * this.vel.x + this.vel.y * this.vel.y);
-    if (spd > maxSpd) {
-      let r = maxSpd / spd;
-      this.vel.x *= r;
-      this.vel.y *= r;
-    }
-    if (spd < 0.2) {
-      if (spd > 0) {
-        let r = 0.2 / spd;
-        this.vel.x *= r;
-        this.vel.y *= r;
-      } else {
-        this.vel.x = 0.2;
-      }
-    }
-
-    this.pos.x += this.vel.x;
-    this.pos.y += this.vel.y;
-    this.acc.x = 0;
-    this.acc.y = 0;
-
-    // --- Tentacles ---
-    let heading = Math.atan2(this.vel.y, this.vel.x);
-    let bwHalf = this.bodyW * 0.3;
-    let wiggle = 0.6 + smMids * 5;
-    let fc = frameCount;
-
-    for (let t = 0; t < this.numTentacles; t++) {
-      let segs = this.tentacles[t];
-      let offset = this.tentacleAngles[t];
-      let attachAngle = heading + PI + offset;
-      let ax = this.pos.x + Math.cos(attachAngle) * bwHalf;
-      let ay = this.pos.y + Math.sin(attachAngle) * bwHalf;
-
-      segs[0].x += (ax - segs[0].x) * 0.55;
-      segs[0].y += (ay - segs[0].y) * 0.55;
-
-      for (let s = 1; s < segs.length; s++) {
-        let prev = segs[s - 1];
-        let segLen = 3.0 + s * 1.0;
-        let dx = prev.x - segs[s].x;
-        let dy = prev.y - segs[s].y;
-        let d = Math.sqrt(dx * dx + dy * dy);
-
-        // Snap if too far (wrap artefact)
-        if (d > segLen * 5) {
-          segs[s].x = prev.x;
-          segs[s].y = prev.y;
-        } else if (d > 0) {
-          let pull = (d - segLen) / d * 0.45;
-          segs[s].x += dx * pull;
-          segs[s].y += dy * pull;
-        }
-
-        // Subtle downward drift
-        segs[s].y += 0.1;
-
-        // Sinusoidal wiggle
-        let wPhase = this.phase + s * 0.65 + t * 1.8 + fc * 0.055;
-        segs[s].x += Math.sin(wPhase) * wiggle * 0.08;
-        segs[s].y += Math.cos(wPhase * 0.7) * wiggle * 0.05;
-      }
-    }
-  }
-
-  wrap() {
-    if (this.pos.x < 0) this.pos.x += W;
-    else if (this.pos.x > W) this.pos.x -= W;
-    if (this.pos.y < 0) this.pos.y += H;
-    else if (this.pos.y > H) this.pos.y -= H;
-  }
-
-  display() {
-    let r = this.baseColor[0];
-    let g = this.baseColor[1];
-    let b = this.baseColor[2];
-
-    // Treble brightens colour
-    let bright = 0.5 + smTreble * 1.3;
-    if (bright > 1) bright = 1;
-    if (bright < 0.35) bright = 0.35;
-
-    let cr = r * bright;
-    let cg = g * bright;
-    let cb = b * bright;
-
-    // Sub-bass scales body size
-    let sizeScale = 1.0 + smSubBass * 2.5;
-    let bw = this.bodyW * sizeScale;
-    let bh = this.bodyH * sizeScale;
-    let px = this.pos.x;
-    let py = this.pos.y;
-
-    // --- Tentacles (behind body) ---
-    for (let t = 0; t < this.numTentacles; t++) {
-      let segs = this.tentacles[t];
-      let n = segs.length;
-      for (let s = 1; s < n; s++) {
-        let fade = 1 - s / n;
-        let alpha = 35 * bright * fade;
-        let weight = max(0.4, (1.6 - s * 0.13) * sizeScale);
-        stroke(cr, cg, cb, alpha);
-        strokeWeight(weight);
-
-        // Skip segments that span too far (wrap artefact)
-        let ddx = Math.abs(segs[s].x - segs[s-1].x);
-        let ddy = Math.abs(segs[s].y - segs[s-1].y);
-        if (ddx > 80 || ddy > 80) continue;
-
-        line(segs[s - 1].x, segs[s - 1].y, segs[s].x, segs[s].y);
-      }
-    }
-    noStroke();
-
-    // --- Body glow layers ---
-    fill(cr, cg, cb, 6);
-    ellipse(px, py, bw * 4, bh * 3.5);
-
-    fill(cr, cg, cb, 14);
-    ellipse(px, py, bw * 2.5, bh * 2.2);
-
-    fill(cr, cg, cb, 35);
-    ellipse(px, py, bw * 1.5, bh * 1.3);
-
-    fill(cr, cg, cb, 70);
-    ellipse(px, py, bw, bh);
-
-    // Bright center
-    let wr = Math.min(cr + 140, 255);
-    let wg = Math.min(cg + 140, 255);
-    let wb = Math.min(cb + 140, 255);
-    fill(wr, wg, wb, 30 * bright);
-    ellipse(px, py, bw * 0.3, bh * 0.25);
-  }
-}
-</script>
+<div class="container">
+  <h1>neon creatures</h1>
+  <div class="subtitle">audio-reactive visualisations</div>
+  <div class="grid">
+    <a href="creatures.html" class="card creatures">
+      <div class="card-icon">🪼</div>
+      <div class="card-title">Creatures</div>
+      <div class="card-desc">Neon jellyfish flocking in the dark</div>
+    </a>
+    <a href="winamp.html" class="card winamp">
+      <div class="card-icon">🌀</div>
+      <div class="card-title">Milkdrop</div>
+      <div class="card-desc">Morphing kaleidoscope tunnels</div>
+    </a>
+    <a href="geometric.html" class="card geometric">
+      <div class="card-icon">💠</div>
+      <div class="card-title">Geometric</div>
+      <div class="card-desc">Day-glow pulsating mandalas</div>
+    </a>
+    <a href="aurora.html" class="card aurora">
+      <div class="card-icon">🌌</div>
+      <div class="card-title">Aurora</div>
+      <div class="card-desc">Northern lights over a dark horizon</div>
+    </a>
+  </div>
+  <div class="footer">
+    <a href="https://github.com/Simibrum/generative-visualisations">github</a> · tap any mode · grant mic access · enjoy
+  </div>
+</div>
 </body>
 </html>
