@@ -53,6 +53,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
+<script src="spectral-debug.js"></script>
 </head>
 <body>
 <div id="start-screen"><span>tap to begin</span></div>
@@ -71,6 +72,7 @@ const SMOOTH = 0.12;
 let mic, fft;
 let started = false;
 let audioReady = false;
+let spectralDebug = window.createSpectralDebug ? window.createSpectralDebug() : null;
 
 let smSubBass = 0, smBass = 0, smMids = 0, smTreble = 0, smAmplitude = 0;
 
@@ -221,6 +223,16 @@ function draw() {
   smMids += (midsRaw - smMids) * SMOOTH;
   smTreble += (trebleRaw - smTreble) * SMOOTH;
   smAmplitude += (ampRaw - smAmplitude) * SMOOTH;
+
+  if (spectralDebug) {
+    spectralDebug.update([
+      { label: 'Sub bass', range: '20–60 Hz', value: smSubBass, color: '#00ff7f' },
+      { label: 'Bass', range: '60–250 Hz', value: smBass, color: '#39ff14' },
+      { label: 'Mids', range: '250 Hz–2 kHz', value: smMids, color: '#00bfff' },
+      { label: 'Treble', range: '2 kHz+', value: smTreble, color: '#d870ff' },
+      { label: 'Overall', value: smAmplitude, color: '#ffffff' }
+    ]);
+  }
 
   t += 0.005 + smMids * 0.015;
 

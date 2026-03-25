@@ -54,6 +54,7 @@ See [`pi/README.md`](pi/README.md) for detailed Pi setup, USB mic configuration,
 | D | Toggle demo mode (Pi version — no mic needed) |
 | F | Toggle FPS overlay (Pi version) |
 | Click/Tap | Start audio (browser version) |
+| S | Toggle the spectral analyser overlay (browser version) |
 
 ## Hardware Setup
 
