@@ -55,6 +55,7 @@ See [`pi/README.md`](pi/README.md) for detailed Pi setup, USB mic configuration,
 | F | Toggle FPS overlay (Pi version) |
 | Click/Tap | Start audio (browser version) |
 | S | Toggle the spectral analyser overlay (browser version) |
+| Tap analyser icon | Toggle the spectral analyser overlay on touch devices (browser version) |
 
 ## Hardware Setup
 

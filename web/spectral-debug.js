@@ -24,13 +24,55 @@
         display: none;
         pointer-events: none;
       }
-      .spectral-debug.is-visible { display: block; }
-      .spectral-debug__title {
+      .spectral-debug.is-visible {
+        display: block;
+        pointer-events: auto;
+      }
+      .spectral-debug__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
         margin-bottom: 10px;
+      }
+      .spectral-debug__title {
         color: rgba(255, 255, 255, 0.9);
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
+      }
+      .spectral-debug__close,
+      .spectral-debug__toggle {
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(0, 0, 0, 0.82);
+        color: rgba(255, 255, 255, 0.88);
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .spectral-debug__close {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        font-size: 16px;
+        line-height: 1;
+      }
+      .spectral-debug__toggle {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 44px;
+        height: 44px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        font-size: 20px;
+        z-index: 21;
+        pointer-events: auto;
+        box-shadow: 0 0 18px rgba(255, 255, 255, 0.1);
+      }
+      .spectral-debug__toggle.is-visible {
+        display: flex;
       }
       .spectral-debug__band + .spectral-debug__band {
         margin-top: 8px;
@@ -84,29 +126,61 @@
 
     const config = options || {};
     const root = document.createElement('div');
+    const header = document.createElement('div');
     const title = document.createElement('div');
+    const closeButton = document.createElement('button');
+    const toggleButton = document.createElement('button');
     const bandsEl = document.createElement('div');
     const footer = document.createElement('div');
     const rows = [];
+    const showTouchToggle = window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 768px)').matches;
 
     root.className = 'spectral-debug';
+    header.className = 'spectral-debug__header';
     title.className = 'spectral-debug__title';
     title.textContent = config.title || 'spectral analyser';
+    closeButton.className = 'spectral-debug__close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', 'Close spectral analyser');
+    closeButton.textContent = '×';
+    toggleButton.className = 'spectral-debug__toggle';
+    toggleButton.type = 'button';
+    toggleButton.setAttribute('aria-label', 'Toggle spectral analyser');
+    toggleButton.textContent = '≋';
     bandsEl.className = 'spectral-debug__bands';
     footer.className = 'spectral-debug__footer';
-    footer.textContent = config.footer || 'press S to toggle';
-    root.appendChild(title);
+    footer.textContent = config.footer || (showTouchToggle ? 'tap ≋ to open · × to close' : 'press S to toggle');
+    header.appendChild(title);
+    header.appendChild(closeButton);
+    root.appendChild(header);
     root.appendChild(bandsEl);
     root.appendChild(footer);
     document.body.appendChild(root);
+    document.body.appendChild(toggleButton);
     let visible = false;
+
+    function syncVisibility() {
+      root.classList.toggle('is-visible', visible);
+      toggleButton.classList.toggle('is-visible', showTouchToggle && !visible);
+    }
+
+    function setVisible(nextVisible) {
+      visible = !!nextVisible;
+      syncVisibility();
+    }
+
+    function toggleVisible() {
+      setVisible(!visible);
+    }
 
     document.addEventListener('keydown', function(event) {
       if (event.repeat) return;
       if ((event.key || '').toLowerCase() !== 's') return;
-      visible = !visible;
-      root.classList.toggle('is-visible', visible);
+      toggleVisible();
     });
+    toggleButton.addEventListener('click', toggleVisible);
+    closeButton.addEventListener('click', function() { setVisible(false); });
+    syncVisibility();
 
     function createRow() {
       const band = document.createElement('div');
