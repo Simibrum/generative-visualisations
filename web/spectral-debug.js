@@ -133,7 +133,8 @@
     const bandsEl = document.createElement('div');
     const footer = document.createElement('div');
     const rows = [];
-    const showTouchToggle = window.matchMedia('(pointer: coarse), (max-width: 768px)').matches;
+    const touchToggleQuery = window.matchMedia('(pointer: coarse), (max-width: 768px)');
+    let showTouchToggle = touchToggleQuery.matches;
 
     root.className = 'spectral-debug';
     header.className = 'spectral-debug__header';
@@ -149,7 +150,11 @@
     toggleButton.textContent = '≋';
     bandsEl.className = 'spectral-debug__bands';
     footer.className = 'spectral-debug__footer';
-    footer.textContent = config.footer || (showTouchToggle ? 'tap the analyser icon to open · tap close to dismiss' : 'press S to toggle');
+    function updateFooterText() {
+      footer.textContent = config.footer || (showTouchToggle ? 'tap the analyser icon to open · tap close to dismiss' : 'press S to toggle');
+    }
+
+    updateFooterText();
     header.appendChild(title);
     header.appendChild(closeButton);
     root.appendChild(header);
@@ -173,11 +178,22 @@
       setVisible(!visible);
     }
 
+    function handleTouchToggleQueryChange(event) {
+      showTouchToggle = event.matches;
+      updateFooterText();
+      syncVisibility();
+    }
+
     document.addEventListener('keydown', function(event) {
       if (event.repeat) return;
       if ((event.key || '').toLowerCase() !== 's') return;
       toggleVisible();
     });
+    if (touchToggleQuery.addEventListener) {
+      touchToggleQuery.addEventListener('change', handleTouchToggleQueryChange);
+    } else if (touchToggleQuery.addListener) {
+      touchToggleQuery.addListener(handleTouchToggleQueryChange);
+    }
     toggleButton.addEventListener('click', toggleVisible);
     closeButton.addEventListener('click', function() { setVisible(false); });
     syncVisibility();
