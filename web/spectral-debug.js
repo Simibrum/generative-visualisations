@@ -133,7 +133,7 @@
     const bandsEl = document.createElement('div');
     const footer = document.createElement('div');
     const rows = [];
-    const showTouchToggle = window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 768px)').matches;
+    const showTouchToggle = window.matchMedia('(pointer: coarse), (max-width: 768px)').matches;
 
     root.className = 'spectral-debug';
     header.className = 'spectral-debug__header';
@@ -149,7 +149,7 @@
     toggleButton.textContent = '≋';
     bandsEl.className = 'spectral-debug__bands';
     footer.className = 'spectral-debug__footer';
-    footer.textContent = config.footer || (showTouchToggle ? 'tap ≋ to open · × to close' : 'press S to toggle');
+    footer.textContent = config.footer || (showTouchToggle ? 'tap the analyser icon to open · tap close to dismiss' : 'press S to toggle');
     header.appendChild(title);
     header.appendChild(closeButton);
     root.appendChild(header);
