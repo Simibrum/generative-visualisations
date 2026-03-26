@@ -208,7 +208,7 @@ function draw() {
       if (freq >= 20 && freq < 60) { sbS += v; sbN++; }
       else if (freq >= 60 && freq < 250) { bS += v; bN++; }
       else if (freq >= 250 && freq < 2000) { mS += v; mN++; }
-      else if (freq >= 2000) { tS += v; tN++; }
+      else if (freq >= 2000 && freq < 8000) { tS += v; tN++; }
     }
 
     subBassRaw = sbN > 0 ? sbS / sbN : 0;
@@ -229,7 +229,7 @@ function draw() {
       { label: 'Sub bass', range: '20–60 Hz', value: smSubBass, color: '#00ff7f' },
       { label: 'Bass', range: '60–250 Hz', value: smBass, color: '#39ff14' },
       { label: 'Mids', range: '250 Hz–2 kHz', value: smMids, color: '#00bfff' },
-      { label: 'Treble', range: '2 kHz+', value: smTreble, color: '#d870ff' },
+      { label: 'Treble', range: '2–8 kHz', value: smTreble, color: '#d870ff' },
       { label: 'Overall', value: smAmplitude, color: '#ffffff' }
     ]);
   }
