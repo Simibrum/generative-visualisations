@@ -53,6 +53,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
+<script src="spectral-debug.js"></script>
 </head>
 <body>
 <div id="start-screen"><span>tap to begin</span></div>
@@ -70,6 +71,7 @@ var SMOOTH = 0.12;
 var mic, fft;
 var started = false;
 var audioReady = false;
+var spectralDebug = window.createSpectralDebug ? window.createSpectralDebug() : null;
 var smBass = 0, smMids = 0, smTreble = 0, smAmplitude = 0;
 var W, H, HW, HH, minDim;
 var globalTime = 0;
@@ -117,7 +119,7 @@ function startAudio() {
   userStartAudio().then(function() {
     mic = new p5.AudioIn();
     mic.start(function() {
-      fft = new p5.FFT(0.8, 512);
+      fft = new p5.FFT(0.8, 256);
       fft.setInput(mic);
     });
   });
@@ -151,7 +153,7 @@ function draw() {
       var f=i*bw, v=sp[i]/255;
       if (f>=20 && f<250)         { bS+=v; bN++; }
       else if (f>=250 && f<2000)  { mS+=v; mN++; }
-      else if (f>=2000 && f<16000){ tS+=v; tN++; }
+      else if (f>=2000 && f<8000){ tS+=v; tN++; }
     }
     bassRaw = bN>0?bS/bN:0;
     midsRaw = mN>0?mS/mN:0;
@@ -169,6 +171,15 @@ function draw() {
   if (!isFinite(smTreble)) smTreble = 0;
   if (!isFinite(smAmplitude)) smAmplitude = 0;
   if (!isFinite(hueOffset)) hueOffset = 0;
+
+  if (spectralDebug) {
+    spectralDebug.update([
+      { label: 'Bass', range: '20–250 Hz', value: smBass, color: '#ff00ff' },
+      { label: 'Mids', range: '250 Hz–2 kHz', value: smMids, color: '#00ffff' },
+      { label: 'Treble', range: '2–8 kHz', value: smTreble, color: '#39ff14' },
+      { label: 'Overall', value: smAmplitude, color: '#ffffff' }
+    ]);
+  }
 
   hueOffset = (hueOffset + (15 + smTreble*120)*dt) % 360;
 

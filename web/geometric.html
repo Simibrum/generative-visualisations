@@ -53,6 +53,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
+<script src="spectral-debug.js"></script>
 </head>
 <body>
 <div id="start-screen"><span>tap to begin</span></div>
@@ -79,6 +80,7 @@ const SMOOTH = 0.12;
 let mic, fft;
 let started = false;
 let audioReady = false;
+let spectralDebug = window.createSpectralDebug ? window.createSpectralDebug() : null;
 
 // Smoothed audio values
 let smSubBass = 0, smBass = 0, smMids = 0, smTreble = 0, smAmplitude = 0;
@@ -244,7 +246,7 @@ function draw() {
       if (freq >= 20 && freq < 60) { sbSum += val; sbN++; }
       else if (freq >= 60 && freq < 250) { bSum += val; bN++; }
       else if (freq >= 250 && freq < 2000) { mSum += val; mN++; }
-      else if (freq >= 2000) { tSum += val; tN++; }
+      else if (freq >= 2000 && freq < 8000) { tSum += val; tN++; }
     }
 
     subBassRaw = sbN > 0 ? sbSum / sbN : 0;
@@ -260,6 +262,16 @@ function draw() {
   smMids += (midsRaw - smMids) * SMOOTH;
   smTreble += (trebleRaw - smTreble) * SMOOTH;
   smAmplitude += (ampRaw - smAmplitude) * SMOOTH;
+
+  if (spectralDebug) {
+    spectralDebug.update([
+      { label: 'Sub bass', range: '20–60 Hz', value: smSubBass, color: '#ff1493' },
+      { label: 'Bass', range: '60–250 Hz', value: smBass, color: '#ffff00' },
+      { label: 'Mids', range: '250 Hz–2 kHz', value: smMids, color: '#39ff14' },
+      { label: 'Treble', range: '2–8 kHz', value: smTreble, color: '#00ffff' },
+      { label: 'Overall', value: smAmplitude, color: '#ffffff' }
+    ]);
+  }
 
   // --- Beat detection ---
   let ampDelta = smAmplitude - prevAmplitude;
